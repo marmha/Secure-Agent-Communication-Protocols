@@ -1,0 +1,1 @@
+{ "data": { "event": "order_billed", "order_id": "ORD-100", "details": "invoice INV-001" } }

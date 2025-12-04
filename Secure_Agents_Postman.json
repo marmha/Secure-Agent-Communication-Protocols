@@ -1,0 +1,39 @@
+{
+  "info": {
+    "name": "Secure Multi-Agent ACP + MCP",
+    "_postman_id": "secure-mcp-acp-collection",
+    "description": "Tests for ACP workflow and MCP tool calls",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register Agent",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"OrderAgent\",\"capabilities\":[\"validate_order\"]}"
+        },
+        "url": {"raw": "{{http://127.0.0.1:8000}}/api/register/", "host": ["{{http://127.0.0.1:8000}}"], "path": ["api", "register", ""]}
+      }
+    },
+    {
+      "name": "ACP - Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{3ba1f4d9cf2f44ca8386d9d4c91dd8e1}}"},
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\": {\"order_id\":\"ORD-001\",\"items\":[\"sku1\"],\"user\":\"test@example.com\"}}"
+        },
+        "url": {"raw": "{{http://127.0.0.1:8000}}/api/acp/order/", "host": ["{{baseUhttp://127.0.0.1:8000rl}}"], "path": ["api","acp","order",""]}
+      }
+    }
+  ]
+}

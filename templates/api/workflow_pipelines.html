@@ -1,0 +1,144 @@
+
+{% load static %}
+<!--  
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Workflow Pipelines</title>
+    <style>
+        body {
+            background: #f3f5f7;
+            font-family: Arial, sans-serif;
+            padding: 40px;
+        }
+        h1 { text-align: center; margin-bottom: 30px; }
+
+        .pipeline-card {
+            background: white;
+            padding: 18px 25px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .pipeline-header {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .steps {
+            display: flex;
+            margin-top: 12px;
+        }
+        .step {
+            background: #eee;
+            padding: 10px 14px;
+            margin-right: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .step.done { background: #7cc67c; color: white; }
+        .step.pending { background: #ffa726; color: white; }
+        .step.error { background: #e57373; color: white; }
+
+        .timestamp {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .tiny {
+            font-size: 13px;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔍 Live Workflow Pipelines</h1>
+
+    {% if pipelines %}
+        {% for pipeline in pipelines %}
+            <div class="pipeline-card">
+                <div class="pipeline-header">
+                    Correlation ID: {{ pipeline.correlation_id }}  
+                </div>
+                <div class="tiny">Last Update: {{ pipeline.updated }}</div>
+
+                <div class="steps">
+                    {% for step in pipeline.steps %}
+                        <div class="step {{ step.status }}">
+                            {{ step.agent }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="timestamp">
+                    Started: {{ pipeline.started }}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No workflows have been executed yet.</p>
+    {% endif %}
+
+</body>
+</html>
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Workflow Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .wf-card {
+            background: white; border-radius: 8px; padding: 16px;
+            margin-bottom: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.1);
+        }
+        .wf-header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+        .step {
+            display: inline-block;
+            background: #4CAF50; 
+            color: white; 
+            padding: 6px 12px;
+            border-radius: 12px;
+            margin-right: 8px;
+        }
+        .meta { font-size: 13px; color: gray; margin-top: 8px; }
+        .btn {
+            display: inline-block; margin-top: 10px;
+            padding: 6px 12px; border-radius: 4px;
+            background: #007BFF; color: white; text-decoration: none;
+        }
+    </style>
+    <script>
+        setInterval(() => location.reload(), 5000); // 🔄 Auto-refresh every 5s
+    </script>
+</head>
+<body>
+
+<h2>🚀 Workflow Executions Dashboard</h2>
+
+{% for wf in pipelines %}
+    <div class="wf-card">
+        <div class="wf-header">Workflow #{{ wf.correlation_id }}</div>
+
+        {% for step in wf.steps %}
+            <span class="step">{{ step.agent }}</span>
+        {% endfor %}
+
+        <div class="meta">
+            🕘 Started: {{ wf.started|date:"H:i:s" }} |
+            🔄 Updated: {{ wf.updated|date:"H:i:s" }} |
+            ✨ Steps: {{ wf.step_count }}
+        </div>
+
+        <a class="btn" href="/api/timeline/?cid={{ wf.correlation_id }}">View Details</a>
+    </div>
+{% empty %}
+    <p>No workflows yet. Run one! → <b>python demo_order.py</b></p>
+{% endfor %}
+
+</body>
+</html>
