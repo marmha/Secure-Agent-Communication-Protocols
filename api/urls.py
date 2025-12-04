@@ -1,36 +1,23 @@
 from django.urls import path
 from .views import (
     register_agent,
-    acp_order,
-    acp_preparation,
-    acp_billing,
-    acp_notification,
-    acp_audit,
-    workflow_timeline,
-    workflow_pipelines,
-    dashboard,
+    acp_order, acp_preparation, acp_billing,
+    acp_notification, acp_audit,
+    workflow_timeline, workflow_pipelines,workflow_dashboard
 )
-
-
 urlpatterns = [
-    path("register/", register_agent, name="register_agent"),
+    path("register/", register_agent),
 
-    # ACP Secure Endpoints
-    path("acp/order/", acp_order, name="acp_order"),
-    path("acp/preparation/", acp_preparation, name="acp_preparation"),
-    path("acp/billing/", acp_billing, name="acp_billing"),
-    path("acp/notification/", acp_notification, name="acp_notification"),
-    path("acp/audit/", acp_audit, name="acp_audit"),
-]
+    # ACP Endpoints - Agent Communication Protocol
+    path("acp/order/", acp_order),
+    path("acp/preparation/", acp_preparation),
+    path("acp/billing/", acp_billing),
+    path("acp/notification/", acp_notification),
+    path("acp/audit/", acp_audit),
 
-urlpatterns += [
+    # UI Dashboard Pages
     path("workflow/", workflow_timeline, name="workflow_timeline"),
-]
-
-urlpatterns += [
     path("pipelines/", workflow_pipelines, name="workflow_pipelines"),
-]
+    path("dashboard/", workflow_dashboard, name="workflow_dashboard"),
 
-urlpatterns += [
-    path("dashboard/", dashboard, name="dashboard"),
 ]
