@@ -1,6 +1,7 @@
 import secrets
 from .models import Agent, AuditLog
-
+from oauth2_provider.models import AccessToken
+from django.utils.timezone import now
 
 def generate_token() -> str:
     """Generate a random token for agents."""
@@ -9,18 +10,48 @@ def generate_token() -> str:
 
 def authenticate_agent(request):
     """
-    Read Authorization header: "Token <value>"
-    Return Agent instance or None.
+    Hybrid auth:
+    - Legacy:  Authorization: Token <agent.token>
+    - OAuth2: Authorization: Bearer <access_token>
+              (maps to Agent via AccessToken.application.name)
     """
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Token "):
+    auth = request.headers.get("Authorization", "").strip()
+    if not auth:
         return None
 
-    token = auth.replace("Token ", "").strip()
-    try:
-        return Agent.objects.get(token=token)
-    except Agent.DoesNotExist:
-        return None
+    # ---- 1) Legacy static token: "Token <value>" ----
+    if auth.startswith("Token "):
+        raw = auth.replace("Token ", "").strip()
+        try:
+            return Agent.objects.get(token=raw)
+        except Agent.DoesNotExist:
+            return None
+
+    # ---- 2) OAuth2 Bearer token: "Bearer <access_token>" ----
+    if auth.startswith("Bearer "):
+        raw = auth.replace("Bearer ", "").strip()
+        try:
+            access_token = AccessToken.objects.select_related("application").get(
+                token=raw
+            )
+        except AccessToken.DoesNotExist:
+            return None
+
+        # Expired?
+        if access_token.expires < now():
+            return None
+
+        # Map Application -> Agent (we assume names match)
+        app = access_token.application
+        try:
+            agent = Agent.objects.get(name=app.name)
+        except Agent.DoesNotExist:
+            return None
+        return agent
+
+    # Unknown scheme
+    return None
+
 
 
 def audit_log(agent, endpoint: str, request_data, response_data, correlation_id=None, trace="OK"):
