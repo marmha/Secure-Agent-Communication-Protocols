@@ -4,8 +4,9 @@ import time
 import os
 
 API_URL = "http://127.0.0.1:8000/api/acp/order/"
+AUDIT_URL = "http://127.0.0.1:8000/api/workflow/"
 
-# Load token from agents/config.json
+# Load tokens
 CONFIG_PATH = os.path.join("agents", "config.json")
 
 with open(CONFIG_PATH, "r") as f:
@@ -13,9 +14,11 @@ with open(CONFIG_PATH, "r") as f:
 
 ORDER_TOKEN = token_data.get("OrderAgent")
 
+print("\n==============================")
+print("🚀 SECURE AGENTS WORKFLOW TEST")
+print("==============================\n")
 
-print("\n=== WORKFLOW PIPELINE RESULT ===")
-print(f"Using Token: {ORDER_TOKEN}\n")
+print(f"🔑 Using OrderAgent Token: {ORDER_TOKEN}\n")
 
 headers = {
     "Authorization": f"Token {ORDER_TOKEN}",
@@ -30,46 +33,101 @@ order_payload = {
     }
 }
 
-AGENT_STEPS = [
-    ("OrderAgent", "validate_order"),
-    ("PreparationAgent", "check_inventory"),
-    ("BillingAgent", "generate_invoice"),
-    ("NotificationAgent", "send_notification"),
-    ("AuditAgent", "record_audit_event"),
-]
-
-# Send initial request
+# ------------------------------
+#  STEP 1: Send to OrderAgent
+# ------------------------------
+print("📤 Sending Order to OrderAgent...\n")
 resp = requests.post(API_URL, json=order_payload, headers=headers)
 
 try:
     json_response = resp.json()
 except Exception:
-    print("❌ Server did not return valid JSON")
+    print("❌ ERROR: Server did not return valid JSON!")
     print(resp.text)
     exit()
 
-# Display first response
-current_response = json_response
-print("➡ OrderAgent:", current_response.get("status", current_response))
+# Basic validation
+correlation_id = json_response.get("correlation_id")
+print(f"🆔 Correlation ID: {correlation_id}")
 
-if current_response.get("status") != "order_validated":
-    print("❌ Failed at OrderAgent step")
+status = json_response.get("status", "")
+print(f"➡ OrderAgent returned status: {status}")
+
+if status != "order_validated":
+    print("❌ OrderAgent failed — stopping.\n")
     exit()
 
-print("✓ OrderAgent completed\n")
-time.sleep(0.6)  # simulate step timing
+print("✓ OrderAgent completed successfully.\n")
+time.sleep(1)
 
 
-# Poll Django AuditLog to confirm downstream execution
-print("📡 Waiting for next workflow steps...\n")
-time.sleep(2)
+# ---------------------------------------------------
+#  STEP 2: Poll Audit Logs to see workflow progression
+# ---------------------------------------------------
+print("📡 Monitoring workflow...\n")
 
-# Fetch full audit log for visibility
-audit_resp = requests.get("http://127.0.0.1:8000/admin/api/auditlog/")
-print("Audit logs updated? Check Admin UI!")
+expected_steps = [
+    "OrderAgent",
+    "PreparationAgent",
+    "BillingAgent",
+    "NotificationAgent",
+    "AuditAgent"
+]
+
+completed_steps = []
+
+# Poll up to 10 seconds
+for i in range(10):
+    logs = requests.get("http://127.0.0.1:8000/api/workflow/json/").json()
+
+    # Filter logs belonging to workflow
+    workflow_logs = [log for log in logs if log.get("correlation_id") == correlation_id]
+
+    for log in workflow_logs:
+        agent_name = log.get("agent_name")
+        if agent_name not in completed_steps:
+            completed_steps.append(agent_name)
+            print(f"✓ Step completed: {agent_name}")
+
+    if set(completed_steps) == set(expected_steps):
+        break
+
+    time.sleep(1)
+
+print("\n📌 Workflow steps completed:")
+for step in completed_steps:
+    print(f"   - {step}")
+
+missing = set(expected_steps) - set(completed_steps)
+if missing:
+    print("\n⚠ Missing steps:", missing)
+
+# ---------------------------------------------------
+#   Detect MCP Email Result
+# ---------------------------------------------------
+
+print("\n🔍 Checking for MCP Email Action...")
+
+email_logs = [
+    log for log in workflow_logs
+    if "mcp_email" in str(log.get("response", "")).lower()
+]
+
+if email_logs:
+    print("📧 MCP Email Tool was called!")
+    print("➡ Email event log:")
+    print(json.dumps(email_logs[-1], indent=4))
+else:
+    print("⚠ No MCP email activity found in logs.")
 
 
-# Final success print
-print("🎯 FULL WORKFLOW COMPLETED!\n")
+# ---------------------------------------------------
+#   Final Summary
+# ---------------------------------------------------
+
+print("\n==============================")
+print("🎯 WORKFLOW EXECUTION FINISHED")
+print("==============================\n")
+
 print("Response from OrderAgent:")
-print(json.dumps(current_response, indent=4))
+print(json.dumps(json_response, indent=4))

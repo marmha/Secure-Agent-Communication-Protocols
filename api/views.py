@@ -1,3 +1,4 @@
+# api/views.py
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.shortcuts import render
@@ -14,6 +15,10 @@ from .utils import generate_token, authenticate_agent, audit_log
 
 @api_view(["POST"])
 def register_agent(request):
+    """
+    POST /api/register/
+    Body: { "name": "OrderAgent", "capabilities": [...] }
+    """
     name = request.data.get("name")
     if not name:
         return Response({"error": "name required"}, status=400)
@@ -41,28 +46,37 @@ def acp_order(request):
 
     print("\n📩 [OrderAgent] Received:", msg)
 
+    # 🔥 ALWAYS CREATE correlation_id
     correlation_id = str(uuid.uuid4())
     msg["correlation_id"] = correlation_id
 
     from agents.order_agent.agent import OrderAgent
     from agents.preparation_agent.client import PreparationAgentClient
 
+    # Run local task
     order_agent = OrderAgent("OrderAgent", None)
     result = async_to_sync(order_agent.execute_task)(
         "validate_order",
         data=msg,
     )
+
+    # 🔥 ALWAYS RETURN correlation_id
     result["correlation_id"] = correlation_id
 
+    # Save audit
     audit_log(agent, "/acp/order", {"content": msg}, result, correlation_id)
+
     print("✔ Order Validated:", result)
 
+    # Continue pipeline
     if result.get("status") == "order_validated":
         prep = Agent.objects.get(name="PreparationAgent")
         print(f"➡ Forwarding to PreparationAgent :: token={prep.token}")
+
         prep_client = PreparationAgentClient(token=prep.token)
         async_to_sync(prep_client.acp_call)("preparation", result)
 
+    # 🔥 Critical: ALWAYS return correlation_id to demo_order.py
     return Response(result)
 
 
@@ -70,6 +84,11 @@ def acp_order(request):
 
 @api_view(["POST"])
 def acp_preparation(request):
+    """
+    Step 2: PreparationAgent
+    - Checks inventory
+    - Forwards to BillingAgent if ok
+    """
     agent = authenticate_agent(request)
     if not agent:
         return Response({"error": "unauthorized"}, status=401)
@@ -92,7 +111,13 @@ def acp_preparation(request):
     )
     result["correlation_id"] = correlation_id
 
-    audit_log(agent, "/acp/preparation", {"content": msg}, result, correlation_id)
+    audit_log(
+        agent,
+        "/acp/preparation",
+        {"content": msg},
+        result,
+        correlation_id=correlation_id,
+    )
     print("✔ Inventory checked:", result)
 
     if result.get("inventory_ok"):
@@ -109,6 +134,11 @@ def acp_preparation(request):
 
 @api_view(["POST"])
 def acp_billing(request):
+    """
+    Step 3: BillingAgent
+    - Generates invoice
+    - Forwards to NotificationAgent
+    """
     agent = authenticate_agent(request)
     if not agent:
         return Response({"error": "unauthorized"}, status=401)
@@ -131,7 +161,13 @@ def acp_billing(request):
     )
     result["correlation_id"] = correlation_id
 
-    audit_log(agent, "/acp/billing", {"content": msg}, result, correlation_id)
+    audit_log(
+        agent,
+        "/acp/billing",
+        {"content": msg},
+        result,
+        correlation_id=correlation_id,
+    )
     print("✔ Invoice created:", result)
 
     notif = Agent.objects.get(name="NotificationAgent")
@@ -147,6 +183,11 @@ def acp_billing(request):
 
 @api_view(["POST"])
 def acp_notification(request):
+    """
+    Step 4: NotificationAgent
+    - Sends notification
+    - Forwards to AuditAgent
+    """
     agent = authenticate_agent(request)
     if not agent:
         return Response({"error": "unauthorized"}, status=401)
@@ -169,7 +210,13 @@ def acp_notification(request):
     )
     result["correlation_id"] = correlation_id
 
-    audit_log(agent, "/acp/notification", {"content": msg}, result, correlation_id)
+    audit_log(
+        agent,
+        "/acp/notification",
+        {"content": msg},
+        result,
+        correlation_id=correlation_id,
+    )
     print("✔ Notification sent:", result)
 
     audit = Agent.objects.get(name="AuditAgent")
@@ -185,6 +232,10 @@ def acp_notification(request):
 
 @api_view(["POST"])
 def acp_audit(request):
+    """
+    Final step: AuditAgent
+    - Receives end-of-pipeline event
+    """
     agent = authenticate_agent(request)
     if not agent:
         return Response({"error": "unauthorized"}, status=401)
@@ -206,7 +257,13 @@ def acp_audit(request):
     )
     result["correlation_id"] = correlation_id
 
-    audit_log(agent, "/acp/audit", {"content": msg}, result, correlation_id)
+    audit_log(
+        agent,
+        "/acp/audit",
+        {"content": msg},
+        result,
+        correlation_id=correlation_id,
+    )
     print("🎯 WORKFLOW COMPLETE")
 
     return Response(result)
@@ -289,3 +346,30 @@ def workflow_dashboard(request):
     }
 
     return render(request, "api/workflow_dashboard.html", context)
+
+
+# ============================= WORKFLOW JSON API =============================
+
+@api_view(["GET"])
+def workflow_logs_json(request):
+    """
+    Pure JSON feed of audit logs for polling by demo_order.py
+    """
+    logs = (
+        AuditLog.objects
+        .select_related("agent")
+        .order_by("-timestamp")[:200]
+    )
+
+    data = []
+    for log in logs:
+        data.append({
+            "agent_name": log.agent.name if log.agent else None,
+            "timestamp": str(log.timestamp),
+            "endpoint": log.endpoint,
+            "correlation_id": log.correlation_id,
+            "request": log.request_data,
+            "response": log.response_data,
+        })
+
+    return Response(data)

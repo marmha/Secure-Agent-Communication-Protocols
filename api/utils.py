@@ -1,14 +1,30 @@
+#api/utils.py
 import secrets
 from .models import Agent, AuditLog
-from oauth2_provider.models import AccessToken
-from django.utils.timezone import now
+#from oauth2_provider.models import AccessToken
+#from django.utils.timezone import now
 
 def generate_token() -> str:
     """Generate a random token for agents."""
     return secrets.token_hex(16)
 
-
 def authenticate_agent(request):
+    """
+    Simple Token authentication ONLY.
+    Authorization: Token <agent_token>
+    """
+    auth = request.headers.get("Authorization", "").strip()
+    if not auth.startswith("Token "):
+        return None
+
+    raw = auth.replace("Token ", "").strip()
+
+    try:
+        return Agent.objects.get(token=raw)
+    except Agent.DoesNotExist:
+        return None
+
+'''def authenticate_agent(request):
     """
     Hybrid auth:
     - Legacy:  Authorization: Token <agent.token>
@@ -51,7 +67,7 @@ def authenticate_agent(request):
 
     # Unknown scheme
     return None
-
+'''
 
 
 def audit_log(agent, endpoint: str, request_data, response_data, correlation_id=None, trace="OK"):

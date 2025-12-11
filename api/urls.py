@@ -3,6 +3,7 @@ from .views import (
     register_agent,
     acp_order, acp_preparation, acp_billing,
     acp_notification, acp_audit,
+    workflow_logs_json,
     workflow_timeline, workflow_pipelines,workflow_dashboard
 )
 urlpatterns = [
@@ -19,5 +20,6 @@ urlpatterns = [
     path("workflow/", workflow_timeline, name="workflow_timeline"),
     path("pipelines/", workflow_pipelines, name="workflow_pipelines"),
     path("dashboard/", workflow_dashboard, name="workflow_dashboard"),
+    path("workflow/json/", workflow_logs_json),
 
 ]
